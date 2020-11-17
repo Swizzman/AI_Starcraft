@@ -1,0 +1,8 @@
+[2020-08-31 17:01:52] Could not load "C:\Users\Jakob Lidborn\Desktop\st\Starcraft2013\bwapi-data\BWAPI.dll".
+ID 0000045A: 
+A dynamic link library (DLL) initialization routine failed.
+
+[2020-08-31 17:17:54] Could not load "C:\Users\Jakob Lidborn\Desktop\SCBW\bwapi-data\BWAPI.dll".
+ID 0000045A: 
+A dynamic link library (DLL) initialization routine failed.
+

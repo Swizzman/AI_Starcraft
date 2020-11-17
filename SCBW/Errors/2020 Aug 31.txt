@@ -1,0 +1,30 @@
+
+//////////////////////////////////////////////////
+TIME: Mon Aug 31 17:43:22 2020
+
+VERSION: 1.16.1.1
+BWAPI:
+  REVISION: 0
+  BUILD: RELEASE
+  ERROR: None
+  LOCATION: Multiplayer 
+MAP: Astral Balance
+     (2)Astral Balance.scm
+BWAPI::BroodwarImpl.enemy() is NULL.
+
+EXCEPTION: 0xC0000005    EXCEPTION_ACCESS_VIOLATION
+FAULT:     0x100349DA    BWAPI.dll
+REGISTERS:
+  EDI: 68B1D38E
+  ESI: 68B1D38E
+  EBX: 04AE1D80
+  EDX: 00000000
+  ECX: 00000057
+  EAX: 00000016
+  EBP: 1008AA10
+  EIP: 100349DA
+  ESP: 0019FD28
+STACK:
+  BWAPI.dll         0x100349DA      ----
+  BWAPI.dll         0x10041BC9      ----
+  BWAPI.dll         0x1004C7D5      ----

@@ -1,0 +1,8 @@
+[2020-08-31 17:02:23] Unable to find C:\Users\Jakob Lidborn\Desktop\SCBW\bwapi-data\BWAPI.dll.
+ID 00000003: 
+The system cannot find the path specified.
+
+[2020-08-31 17:03:45] Unable to find C:\Users\Jakob Lidborn\Desktop\SCBW\bwapi-data\BWAPI.dll.
+ID 00000003: 
+The system cannot find the path specified.
+
