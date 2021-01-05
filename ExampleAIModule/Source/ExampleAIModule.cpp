@@ -137,10 +137,9 @@ void ExampleAIModule::onFrame()
 		else if (u->getType().isResourceDepot()) // A resource depot is a Command Center, Nexus, or Hatchery
 		{
 
-			/*u->getClosestUnit(GetType == UnitTypes::Terran_Barracks);*/
-
 			if (!u->getClosestUnit(GetType == UnitTypes::Terran_Barracks))
 			{
+
 				UnitType barrack(UnitTypes::Terran_Barracks);
 				if (Broodwar->self()->minerals() >= barrack.mineralPrice())
 				{
