@@ -69,12 +69,13 @@ int main(int argc, const char* argv[])
       //send each worker to the mineral field that is closest to it
       Unitset units    = Broodwar->self()->getUnits();
       Unitset minerals  = Broodwar->getMinerals();
+      Broodwar << "Hello" << std::endl;
       for ( auto &u : units )
       {
         if ( u->getType().isWorker() )
         {
           Unit closestMineral = nullptr;
-
+          UnitType barracks(UnitTypes::Terran_Barracks);
           for (auto &m : minerals)
           {
             if ( !closestMineral || u->getDistance(m) < u->getDistance(closestMineral))
@@ -83,11 +84,11 @@ int main(int argc, const char* argv[])
           if ( closestMineral )
             u->rightClick(closestMineral);
         }
-        else if ( u->getType().isResourceDepot() )
-        {
-          //if this is a center, tell it to build the appropiate type of worker
-          u->train(Broodwar->self()->getRace().getWorker());
-        }
+        //else if ( u->getType().isResourceDepot() )
+        //{
+        //  //if this is a center, tell it to build the appropiate type of worker
+        //  u->train(Broodwar->self()->getRace().getWorker());
+        //}
       }
     }
     while(Broodwar->isInGame())

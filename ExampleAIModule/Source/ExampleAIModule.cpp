@@ -137,6 +137,29 @@ void ExampleAIModule::onFrame()
 		else if (u->getType().isResourceDepot()) // A resource depot is a Command Center, Nexus, or Hatchery
 		{
 
+			/*u->getClosestUnit(GetType == UnitTypes::Terran_Barracks);*/
+
+			if (!u->getClosestUnit(GetType == UnitTypes::Terran_Barracks))
+			{
+				UnitType barrack(UnitTypes::Terran_Barracks);
+				if (Broodwar->self()->minerals() >= barrack.mineralPrice())
+				{
+					Unit barrackBuilder = u->getClosestUnit(GetType == barrack.whatBuilds().first &&
+						(IsIdle || IsGatheringMinerals) &&
+						IsOwned);
+
+					if (barrackBuilder)
+					{
+						TilePosition buildPos = Broodwar->getBuildLocation(barrack, barrackBuilder->getTilePosition());
+
+						if (buildPos)
+						{
+							barrackBuilder->build(barrack, buildPos);
+						}
+					}
+				}
+			}
+
 			// Order the depot to construct more workers! But only when it is idle.
 			if (u->isIdle() && !u->train(u->getType().getRace().getWorker()))
 			{
@@ -158,6 +181,7 @@ void ExampleAIModule::onFrame()
 					lastChecked + 400 < Broodwar->getFrameCount() &&
 					Broodwar->self()->incompleteUnitCount(supplyProviderType) == 0)
 				{
+
 					lastChecked = Broodwar->getFrameCount();
 
 					// Retrieve a unit that is capable of constructing the supply needed
@@ -174,15 +198,15 @@ void ExampleAIModule::onFrame()
 							{
 								// Register an event that draws the target build location
 								Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
-									{
-										Broodwar->drawBoxMap(Position(targetBuildLocation),
-											Position(targetBuildLocation + supplyProviderType.tileSize()),
-											Colors::Blue);
-									},
+								{
+									Broodwar->drawBoxMap(Position(targetBuildLocation),
+										Position(targetBuildLocation + supplyProviderType.tileSize()),
+										Colors::Blue);
+								},
 									nullptr,  // condition
-										supplyProviderType.buildTime() + 100);  // frames to run
+									supplyProviderType.buildTime() + 100);  // frames to run
 
-								// Order the builder to construct the supply structure
+							// Order the builder to construct the supply structure
 								supplyBuilder->build(supplyProviderType, targetBuildLocation);
 							}
 						}
@@ -192,8 +216,8 @@ void ExampleAIModule::onFrame()
 							supplyBuilder->train(supplyProviderType);
 						}
 					}
-				} 
-			} 
+				}
+			}
 
 		}
 

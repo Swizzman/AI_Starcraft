@@ -264,6 +264,7 @@ __pycache__/
 *.rep
 *.ini
 *.txt
+*.dll
 [Cc]haoslauncher/
 BWAPIClient/
 BWAPILIB/
