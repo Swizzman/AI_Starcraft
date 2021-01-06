@@ -4,12 +4,76 @@
 using namespace BWAPI;
 using namespace Filter;
 
+Error ExampleAIModule::createBuilding(UnitType type, Unit unit)
+{
+	BWAPI::Error error = Errors::None;
+
+	if (Broodwar->self()->minerals() >= type.mineralPrice())
+	{
+		static int lastChecked = 0;
+		if (lastChecked + 250 < Broodwar->getFrameCount())
+		{
+			if (type != UnitTypes::Terran_Supply_Depot || Broodwar->self()->incompleteUnitCount(type) == 0)
+			{
+				lastChecked = Broodwar->getFrameCount();
+
+				Unit builder = unit->getClosestUnit(GetType == type.whatBuilds().first &&
+					(IsIdle || IsGatheringMinerals) && IsOwned);
+
+				if (builder)
+				{
+					TilePosition buildPos = Broodwar->getBuildLocation(type, builder->getTilePosition());
+
+					if (buildPos)
+					{
+						stopTraining = true;
+						Broodwar->registerEvent([buildPos, type](Game*)
+						{
+							Broodwar->drawBoxMap(Position(buildPos),
+								Position(buildPos + type.tileSize()),
+								Colors::Blue);
+						},
+							nullptr,  // condition
+							type.buildTime() + 100);  // frames to run
+
+						builder->build(type, buildPos);
+						if (type == UnitTypes::Terran_Refinery)
+						{
+							gasGathererID[0] = builder->getID();
+							nrOfGasGatherer = 1;
+						}
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		error = Errors::Insufficient_Minerals;
+	}
+
+	return error;
+}
+
+void ExampleAIModule::printErrorAt(BWAPI::Error error, BWAPI::Position pos)
+{
+	Broodwar->registerEvent([pos, error](Game*) { Broodwar->drawTextMap(pos, "%c%s", Text::White, error.c_str()); },   // action
+		nullptr,    // condition
+		Broodwar->getLatencyFrames());  // frames to run
+}
+
 void ExampleAIModule::onStart()
 {
 	this->nrOfWorkers = 0;
 	this->nrOfBarracks = 0;
 	this->nrOfMarines = 0;
 	this->nrOfRefineries = 0;
+	this->nrOfGasGatherer = 0;
+	this->gasGathererID[0] = -1;
+	this->gasGathererID[1] = -1;
+	this->gasGathererID[2] = -1;
+	this->stopTraining = false;
+
 	//Here is where you program start
 
 	//setLocalSpeed(0) is sets speed to your framerate, higher value == slower gamespeed
@@ -17,7 +81,7 @@ void ExampleAIModule::onStart()
 
 
 
-	Broodwar->sendText("Welcome to BTH_AI!");
+	Broodwar->sendText("Welcome to Boten Anna!");
 	// Print the map name.
 
 	// BWAPI returns std::string when retrieving a string, don't forget to add .c_str() when printing!
@@ -36,7 +100,6 @@ void ExampleAIModule::onStart()
 	// Check if this is a replay
 	if (Broodwar->isReplay())
 	{
-
 		// Announce the players in the replay
 		Broodwar << "The following players are in this replay:" << std::endl;
 
@@ -114,32 +177,51 @@ void ExampleAIModule::onFrame()
 		// If the unit is a worker unit
 		if (u->getType().isWorker())
 		{
+			for (int i = 0; i < nrOfGasGatherer; i++)
+			{
+				if (gasGathererID[i] == u->getID() && !u->isGatheringGas())
+				{
+					if (!u->gather(u->getClosestUnit(IsRefinery)))
+					{
+						Broodwar << Broodwar->getLastError() << std::endl;
+					}
+				}
+			}
+			if (this->nrOfRefineries > 0 && this->nrOfGasGatherer < MAX_GAS_GATHERERS && this->nrOfWorkers > 3)
+			{
+				bool inserted = false;
+				for (int i = 0; i < MAX_GAS_GATHERERS && !inserted; i++)
+				{
+					if (this->gasGathererID[i] == -1)
+					{
+						bool hasFound = false;
+						for (int j = 0; j < nrOfGasGatherer && !hasFound; j++)
+						{
+							if (this->gasGathererID[j] == u->getID())
+							{
+								hasFound = true;
+							}
+						}
+						if (!hasFound)
+						{
+							this->gasGathererID[i] = u->getID();
+							inserted = true;
+							this->nrOfGasGatherer++;
+							for (int k = 0; k < MAX_GAS_GATHERERS; k++)
+							{
+								Broodwar << "i: " << gasGathererID[k] << std::endl;
+							}
+							Broodwar << nrOfGasGatherer << std::endl;
+						}
+					}
+				}
+			}
+
 			// if our worker is idle
 			if (u->isIdle())
 			{
 				// Order workers carrying a resource to return them to the center,
 				// otherwise find a mineral patch to harvest.
-
-				if (!u->getClosestUnit(GetType == UnitTypes::Terran_Barracks))
-				{
-					UnitType barrack(UnitTypes::Terran_Barracks);
-					if (Broodwar->self()->minerals() >= barrack.mineralPrice())
-					{
-						Unit barrackBuilder = u->getClosestUnit(GetType == barrack.whatBuilds().first &&
-							(IsIdle || IsGatheringMinerals) &&
-							IsOwned);
-
-						if (barrackBuilder)
-						{
-							TilePosition buildPos = Broodwar->getBuildLocation(barrack, barrackBuilder->getTilePosition());
-
-							if (buildPos)
-							{
-								barrackBuilder->build(barrack, buildPos);
-							}
-						}
-					}
-				}
 
 				if (u->isCarryingGas() || u->isCarryingMinerals())
 				{
@@ -148,68 +230,40 @@ void ExampleAIModule::onFrame()
 				else if (!u->getPowerUp())  // The worker cannot harvest anything if it
 				{                             // is carrying a powerup such as a flag
 				  // Harvest from the nearest mineral patch or gas refinery
-					if (!u->gather(u->getClosestUnit(IsMineralField || IsRefinery)))
+					if (!u->gather(u->getClosestUnit(IsMineralField)))
 					{
 						// If the call fails, then print the last error message
 						Broodwar << Broodwar->getLastError() << std::endl;
 					}
-
 				} // closure: has no powerup
 			} // closure: if idle
 		}
 		else if (u->getType().isResourceDepot()) // A resource depot is a Command Center, Nexus, or Hatchery
 		{
+			Error lastErr;
 			// Pushing out a refinery once we have a barrack
 			if (this->nrOfBarracks > 0 && this->nrOfRefineries < this->MAX_REFINERY)
 			{
-				if (Broodwar->self()->minerals() >= UnitTypes::Terran_Refinery.mineralPrice())
+				// REFINERY
+				lastErr = createBuilding(UnitTypes::Terran_Refinery, u);
+				if (lastErr != Errors::None)
 				{
-					static int lastChecked = 0;
-					if (lastChecked + 400 < Broodwar->getFrameCount())
-					{
-						lastChecked = Broodwar->getFrameCount();
-
-						Unit refineryBuilder = u->getClosestUnit(GetType == UnitTypes::Terran_Refinery.whatBuilds().first &&
-							(IsIdle || IsGatheringMinerals) && IsOwned);
-
-						if (refineryBuilder)
-						{
-							TilePosition buildPos = Broodwar->getBuildLocation(UnitTypes::Terran_Refinery, refineryBuilder->getTilePosition());
-
-							if (buildPos)
-							{
-								refineryBuilder->build(UnitTypes::Terran_Refinery, buildPos);
-							}
-						}
-					}
+					printErrorAt(lastErr, u->getPosition());
 				}
 			}
 			if (this->nrOfBarracks < this->MAX_BARRACKS)
 			{
 				// If we are supply blocked and haven't tried constructing more recently
-				if (Broodwar->self()->minerals() >= UnitTypes::Terran_Barracks.mineralPrice())
+
+				// BARRACK
+				lastErr = createBuilding(UnitTypes::Terran_Barracks, u);
+				if (lastErr != Errors::None)
 				{
-					static int lastChecked = 0;
-					if (lastChecked + 400 < Broodwar->getFrameCount())
-					{
-						lastChecked = Broodwar->getFrameCount();
-						Unit barrackBuilder = u->getClosestUnit(GetType == UnitTypes::Terran_Barracks.whatBuilds().first &&
-							(IsIdle || IsGatheringMinerals) && IsOwned);
-
-						if (barrackBuilder)
-						{
-							TilePosition buildPos = Broodwar->getBuildLocation(UnitTypes::Terran_Barracks, barrackBuilder->getTilePosition());
-
-							if (buildPos)
-							{
-								barrackBuilder->build(UnitTypes::Terran_Barracks, buildPos);
-							}
-						}
-					}
+					printErrorAt(lastErr, u->getPosition());
 				}
 			}
 
-			if (this->nrOfWorkers < this->MAX_WORKERS && u->isIdle())
+			if (this->nrOfWorkers < this->MAX_WORKERS && u->isIdle() && !stopTraining)
 			{
 				u->train(u->getType().getRace().getWorker());
 			}
@@ -218,61 +272,17 @@ void ExampleAIModule::onFrame()
 				// If that fails, draw the error at the location so that you can visibly see what went wrong!
 				// However, drawing the error once will only appear for a single frame
 				// so create an event that keeps it on the screen for some frames
-			Error lastErr = Broodwar->getLastError();
 
 			// Retrieve the supply provider type in the case that we have run out of supplies
 
 			if ((Broodwar->self()->supplyTotal() - Broodwar->self()->supplyUsed() <= 8 && this->nrOfBarracks > 0) ||
 				(Broodwar->self()->supplyTotal() - Broodwar->self()->supplyUsed() <= 4 && this->nrOfBarracks == 0))
 			{
-				Position pos = u->getPosition();
-				static int lastChecked = 0;
-				Broodwar->registerEvent([pos, lastErr](Game*) { Broodwar->drawTextMap(pos, "%c%s", Text::White, lastErr.c_str()); },   // action
-					nullptr,    // condition
-					Broodwar->getLatencyFrames());  // frames to run
-
-				if (Broodwar->self()->minerals() >= UnitTypes::Terran_Supply_Depot.mineralPrice())
+				// SUPPLY DEPOT
+				lastErr = createBuilding(u->getType().getRace().getSupplyProvider(), u);
+				if (lastErr != Errors::None)
 				{
-					UnitType supplyProviderType = u->getType().getRace().getSupplyProvider();
-					// If we are supply blocked and haven't tried constructing more recently
-					if (lastChecked + 200 < Broodwar->getFrameCount() &&
-						Broodwar->self()->incompleteUnitCount(supplyProviderType) == 0)
-					{
-						lastChecked = Broodwar->getFrameCount();
-
-						// Retrieve a unit that is capable of constructing the supply needed
-						Unit supplyBuilder = u->getClosestUnit(GetType == supplyProviderType.whatBuilds().first &&
-							(IsIdle || IsGatheringMinerals) &&
-							IsOwned);
-						// If a unit was found
-						if (supplyBuilder)
-						{
-							if (supplyProviderType.isBuilding())
-							{
-								TilePosition targetBuildLocation = Broodwar->getBuildLocation(supplyProviderType, supplyBuilder->getTilePosition());
-								if (targetBuildLocation)
-								{
-									// Register an event that draws the target build location
-									Broodwar->registerEvent([targetBuildLocation, supplyProviderType](Game*)
-									{
-										Broodwar->drawBoxMap(Position(targetBuildLocation),
-											Position(targetBuildLocation + supplyProviderType.tileSize()),
-											Colors::Blue);
-									},
-										nullptr,  // condition
-										supplyProviderType.buildTime() + 100);  // frames to run
-
-								// Order the builder to construct the supply structure
-									supplyBuilder->build(supplyProviderType, targetBuildLocation);
-								}
-							}
-							else
-							{
-								// Train the supply provider (Overlord) if the provider is not a structure
-								supplyBuilder->train(supplyProviderType);
-							}
-						}
-					}
+					printErrorAt(lastErr, u->getPosition());
 				}
 			}
 
@@ -281,7 +291,7 @@ void ExampleAIModule::onFrame()
 		{
 			if (Broodwar->self()->minerals() >= UnitTypes::Terran_Marine.mineralPrice())
 			{
-				if (u->isIdle())
+				if (u->isIdle() && !stopTraining)
 				{
 					u->train(UnitTypes::Terran_Marine);
 				}
@@ -365,23 +375,21 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 	}
 	else
 	{
+		if (unit->getType().isBuilding())
+		{
+			stopTraining = false;
+		}
 		switch (unit->getType())
 		{
-		case UnitTypes::Terran_SCV:
-			nrOfWorkers++;
-			Broodwar << "Active SCV: " << nrOfWorkers << std::endl;
-			break;
 		case UnitTypes::Terran_Barracks:
 			nrOfBarracks++;
-			Broodwar << "Active Barracks: " << nrOfBarracks << std::endl;
-			break;
-		case UnitTypes::Terran_Marine:
-			nrOfMarines++;
-			Broodwar << "Active Marines: " << nrOfMarines << std::endl;
+			Broodwar << "Creating: " << unit->getType() << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
-			nrOfRefineries++;
-			Broodwar << "Active Refineries: " << nrOfRefineries << std::endl;
+			Broodwar << "Creating: " << unit->getType() << std::endl;
+			break;
+		case UnitTypes::Terran_Supply_Depot:
+			Broodwar << "Creating: " << unit->getType() << std::endl;
 			break;
 		}
 	}
@@ -393,19 +401,37 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 	{
 	case UnitTypes::Terran_SCV:
 		nrOfWorkers--;
-		Broodwar << "Active SCV: " << nrOfWorkers << std::endl;
+		Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
+		for (int i = 0; i < nrOfGasGatherer; i++)
+		{
+			if (gasGathererID[i] == unit->getID())
+			{
+				for (int j = i; j < MAX_GAS_GATHERERS - 1; j++)
+				{
+					gasGathererID[j] = gasGathererID[j + 1];
+				}
+				gasGathererID[MAX_GAS_GATHERERS - 1] = -1;
+				nrOfGasGatherer--;
+				break;
+			}
+			Broodwar << nrOfGasGatherer << std::endl;
+		}
 		break;
 	case UnitTypes::Terran_Barracks:
 		nrOfBarracks--;
-		Broodwar << "Active Barracks: " << nrOfBarracks << std::endl;
+		Broodwar << "Active " << unit->getType() << ": " << nrOfBarracks << std::endl;
 		break;
 	case UnitTypes::Terran_Marine:
 		nrOfMarines--;
-		Broodwar << "Active Marines: " << nrOfMarines << std::endl;
+		Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 		break;
 	case UnitTypes::Terran_Refinery:
 		nrOfRefineries--;
-		Broodwar << "Active Refineries: " << nrOfRefineries << std::endl;
+		for (int i = 0; i < MAX_GAS_GATHERERS; i++)
+		{
+			this->gasGathererID[i] = -1;
+		}
+		Broodwar << "Active " << unit->getType() << ": " << nrOfRefineries << std::endl;
 		break;
 	}
 }
@@ -423,6 +449,16 @@ void ExampleAIModule::onUnitMorph(BWAPI::Unit unit)
 			Broodwar->sendText("%.2d:%.2d: %s morphs a %s", minutes, seconds, unit->getPlayer()->getName().c_str(), unit->getType().c_str());
 		}
 	}
+	else
+	{
+		switch (unit->getType())
+		{
+		case UnitTypes::Terran_Refinery:
+			stopTraining = false;
+			break;
+		}
+	}
+
 }
 
 void ExampleAIModule::onUnitRenegade(BWAPI::Unit unit)
@@ -436,4 +472,22 @@ void ExampleAIModule::onSaveGame(std::string gameName)
 
 void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 {
+	switch (unit->getType())
+	{
+	case UnitTypes::Terran_SCV:
+		nrOfWorkers++;
+		Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
+		break;
+	case UnitTypes::Terran_Marine:
+		nrOfMarines++;
+		Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
+		break;
+	case UnitTypes::Terran_Refinery:
+		nrOfRefineries++;
+		Broodwar << "Active " << unit->getType() << ": " << nrOfRefineries << std::endl;
+		break;
+	case UnitTypes::Terran_Barracks:
+		Broodwar << "Active " << unit->getType() << ": " << nrOfBarracks << std::endl;
+		break;
+	}
 }

@@ -10,10 +10,17 @@ private:
 	static const int MAX_WORKERS = 14;
 	static const int MAX_MARINES = 15;
 	static const int MAX_REFINERY = 1;
+	static const int MAX_GAS_GATHERERS = 3;
 	int nrOfWorkers;
 	int nrOfBarracks;
 	int nrOfMarines;
 	int nrOfRefineries;
+	int nrOfGasGatherer;
+	int gasGathererID[MAX_GAS_GATHERERS];
+	bool stopTraining;
+
+	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);
+	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);
 
 public:
   // Virtual functions for callbacks, leave these as they are.
