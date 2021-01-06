@@ -5,6 +5,16 @@
 
 class ExampleAIModule : public BWAPI::AIModule
 {
+private:
+	static const int MAX_BARRACKS = 2;
+	static const int MAX_WORKERS = 14;
+	static const int MAX_MARINES = 15;
+	static const int MAX_REFINERY = 1;
+	int nrOfWorkers;
+	int nrOfBarracks;
+	int nrOfMarines;
+	int nrOfRefineries;
+
 public:
   // Virtual functions for callbacks, leave these as they are.
   virtual void onStart();
