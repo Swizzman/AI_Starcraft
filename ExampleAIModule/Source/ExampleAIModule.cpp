@@ -74,7 +74,7 @@ void ExampleAIModule::drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitT
 		type.buildTime() + 100);  // frames to run
 }
 
-void ExampleAIModule::onStart()
+void ExampleAIModule::initializeVariables()
 {
 	this->nrOfWorkers = 0;
 	this->nrOfBarracks = 0;
@@ -86,6 +86,7 @@ void ExampleAIModule::onStart()
 	this->nrOfUpgrades = 0;
 	this->nrOfTech = 0;
 	this->nrOfFactories = 0;
+	this->nrOfSupplyDepots = 0;
 	this->gasGathererID[0] = -1;
 	this->gasGathererID[1] = -1;
 	this->gasGathererID[2] = -1;
@@ -95,8 +96,12 @@ void ExampleAIModule::onStart()
 	this->tech[1] = TechTypes::Restoration;
 	this->tech[2] = TechTypes::Optical_Flare;
 	this->stopTraining = false;
+}
 
+void ExampleAIModule::onStart()
+{
 	//Here is where you program start
+	initializeVariables();
 
 	//setLocalSpeed(0) is sets speed to your framerate, higher value == slower gamespeed
 	Broodwar->setLocalSpeed(22);
@@ -190,12 +195,11 @@ void ExampleAIModule::onFrame()
 		// Ignore the unit if it is incomplete or busy constructing
 		if (!u->isCompleted() || u->isConstructing())
 			continue;
-
-
 		// Finally make the unit do some stuff!
-
 		// If the unit is a worker unit
-		if (u->getType().isWorker())
+		switch (u->getType())
+		{
+		case UnitTypes::Terran_SCV:
 		{
 			for (int i = 0; i < nrOfGasGatherer; i++)
 			{
@@ -235,7 +239,6 @@ void ExampleAIModule::onFrame()
 					}
 				}
 			}
-
 			// if our worker is idle
 			if (u->isIdle())
 			{
@@ -256,12 +259,13 @@ void ExampleAIModule::onFrame()
 					}
 				} // closure: has no powerup
 			} // closure: if idle
+			break;
 		}
-		else if (u->getType().isResourceDepot()) // A resource depot is a Command Center, Nexus, or Hatchery
+		case UnitTypes::Terran_Command_Center:
 		{
 			Error lastErr;
 			// Pushing out a refinery once we have a barrack
-			if (this->nrOfBarracks > 0 && this->nrOfRefineries < this->MAX_REFINERY)
+			if (this->nrOfBarracks > 0 && this->nrOfRefineries < this->MAX_REFINERY && this->nrOfSupplyDepots > 1)
 			{
 				// REFINERY
 				lastErr = createBuilding(UnitTypes::Terran_Refinery, u);
@@ -313,8 +317,7 @@ void ExampleAIModule::onFrame()
 
 			// Retrieve the supply provider type in the case that we have run out of supplies
 
-			if ((Broodwar->self()->supplyTotal() - Broodwar->self()->supplyUsed() <= 8 && this->nrOfBarracks > 0) ||
-				(Broodwar->self()->supplyTotal() - Broodwar->self()->supplyUsed() <= 4 && this->nrOfBarracks == 0))
+			if ((Broodwar->self()->supplyTotal() - Broodwar->self()->supplyUsed() <= 8 && this->nrOfBarracks > 0))
 			{
 				// SUPPLY DEPOT
 				lastErr = createBuilding(u->getType().getRace().getSupplyProvider(), u);
@@ -323,9 +326,9 @@ void ExampleAIModule::onFrame()
 					printErrorAt(lastErr, u->getPosition());
 				}
 			}
-
+			break;
 		}
-		else if (u->getType() == UnitTypes::Terran_Factory)
+		case UnitTypes::Terran_Factory:
 		{
 			if (u->isIdle())
 			{
@@ -342,17 +345,19 @@ void ExampleAIModule::onFrame()
 					u->train(UnitTypes::Terran_Siege_Tank_Tank_Mode);
 				}
 			}
+			break;
 		}
-		else if (u->getType() == UnitTypes::Terran_Machine_Shop)
+		case UnitTypes::Terran_Machine_Shop:
 		{
-			if (Broodwar->self()->isResearchAvailable(TechTypes::Tank_Siege_Mode) && 
+			if (Broodwar->self()->isResearchAvailable(TechTypes::Tank_Siege_Mode) &&
 				Broodwar->self()->minerals() >= TechTypes::Tank_Siege_Mode.mineralPrice() &&
 				Broodwar->self()->gas() >= TechTypes::Tank_Siege_Mode.gasPrice() && !stopTraining)
 			{
 				u->research(TechTypes::Tank_Siege_Mode);
 			}
+			break;
 		}
-		else if (u->getType() == UnitTypes::Terran_Barracks)
+		case UnitTypes::Terran_Barracks:
 		{
 			if (this->nrOfMarines < this->MAX_MARINES)
 			{
@@ -374,10 +379,11 @@ void ExampleAIModule::onFrame()
 					}
 				}
 			}
+			break;
 		}
-		else if (u->getType() == UnitTypes::Terran_Academy)
+		case UnitTypes::Terran_Academy:
 		{
-			if (u->isIdle() && !stopTraining)
+			if (u->isIdle() && !stopTraining && this->nrOfMarines > 5)
 			{
 				if (this->nrOfUpgrades < this->MAX_UPGRADES &&
 					Broodwar->self()->minerals() >= upgrades[nrOfUpgrades].mineralPrice() &&
@@ -392,20 +398,20 @@ void ExampleAIModule::onFrame()
 					u->research(tech[nrOfTech++]);
 				}
 			}
+			break;
+		}
+		default:
+			break;
 		}
 	} // closure: unit iterator
 }
 
 void ExampleAIModule::onSendText(std::string text)
 {
-
 	// Send the text to the game if it is not being processed.
 	Broodwar->sendText("%s", text.c_str());
-
-
 	// Make sure to use %s and pass the text as a parameter,
 	// otherwise you may run into problems when you use the %(percent) character!
-
 }
 
 void ExampleAIModule::onReceiveText(BWAPI::Player player, std::string text)
@@ -423,7 +429,6 @@ void ExampleAIModule::onPlayerLeft(BWAPI::Player player)
 
 void ExampleAIModule::onNukeDetect(BWAPI::Position target)
 {
-
 	// Check if the target is a valid position
 	if (target)
 	{
@@ -435,13 +440,11 @@ void ExampleAIModule::onNukeDetect(BWAPI::Position target)
 		// Otherwise, ask other players where the nuke is!
 		Broodwar->sendText("Where's the nuke?");
 	}
-
 	// You can also retrieve all the nuclear missile targets using Broodwar->getNukeDots()!
 }
 
 void ExampleAIModule::onUnitDiscover(BWAPI::Unit unit)
 {
-
 }
 
 void ExampleAIModule::onUnitEvade(BWAPI::Unit unit)
@@ -471,97 +474,109 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 	}
 	else
 	{
-		if (unit->getType().isBuilding())
+		if (unit->getPlayer() == Broodwar->self())
 		{
-			stopTraining = false;
-		}
-		switch (unit->getType())
-		{
-		case UnitTypes::Terran_Barracks:
-			nrOfBarracks++;
-			Broodwar << "Creating: " << unit->getType() << std::endl;
-			break;
-		case UnitTypes::Terran_Refinery:
-			Broodwar << "Creating: " << unit->getType() << std::endl;
-			break;
-		case UnitTypes::Terran_Supply_Depot:
-			Broodwar << "Creating: " << unit->getType() << std::endl;
-			break;
-		case UnitTypes::Terran_Academy:
-			this->nrOfAcademies++;
-			Broodwar << "Creating: " << unit->getType() << std::endl;
-			break;
-		case UnitTypes::Terran_Factory:
-			this->nrOfFactories++;
-			Broodwar << "Creating: " << unit->getType() << std::endl;
-			break;
-		case UnitTypes::Terran_Machine_Shop:
-			Broodwar << "Creating Addon: " << unit->getType() << std::endl;
-			break;
+
+			if (unit->getType().isBuilding())
+			{
+				stopTraining = false;
+			}
+			switch (unit->getType())
+			{
+			case UnitTypes::Terran_Barracks:
+				nrOfBarracks++;
+				Broodwar << "Creating: " << unit->getType() << std::endl;
+				break;
+			case UnitTypes::Terran_Refinery:
+				Broodwar << "Creating: " << unit->getType() << std::endl;
+				break;
+			case UnitTypes::Terran_Supply_Depot:
+				this->nrOfSupplyDepots++;
+				Broodwar << "Creating: " << unit->getType() << std::endl;
+				break;
+			case UnitTypes::Terran_Academy:
+				this->nrOfAcademies++;
+				Broodwar << "Creating: " << unit->getType() << std::endl;
+				break;
+			case UnitTypes::Terran_Factory:
+				this->nrOfFactories++;
+				Broodwar << "Creating: " << unit->getType() << std::endl;
+				break;
+			case UnitTypes::Terran_Machine_Shop:
+				Broodwar << "Creating Addon: " << unit->getType() << std::endl;
+				break;
+			}
 		}
 	}
 }
 
 void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 {
-	switch (unit->getType())
+	if (unit->getPlayer() == Broodwar->self())
 	{
-	case UnitTypes::Terran_SCV:
-		nrOfWorkers--;
-		Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
-		for (int i = 0; i < nrOfGasGatherer; i++)
+		switch (unit->getType())
 		{
-			if (gasGathererID[i] == unit->getID())
+		case UnitTypes::Terran_SCV:
+			nrOfWorkers--;
+			Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
+			for (int i = 0; i < nrOfGasGatherer; i++)
 			{
-				for (int j = i; j < MAX_GAS_GATHERERS - 1; j++)
+				if (gasGathererID[i] == unit->getID())
 				{
-					gasGathererID[j] = gasGathererID[j + 1];
+					for (int j = i; j < MAX_GAS_GATHERERS - 1; j++)
+					{
+						gasGathererID[j] = gasGathererID[j + 1];
+					}
+					gasGathererID[MAX_GAS_GATHERERS - 1] = -1;
+					nrOfGasGatherer--;
+					break;
 				}
-				gasGathererID[MAX_GAS_GATHERERS - 1] = -1;
-				nrOfGasGatherer--;
-				break;
 			}
+			break;
+		case UnitTypes::Terran_Barracks:
+			this->nrOfBarracks--;
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Academy:
+			this->nrOfAcademies--;
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			if (unit->isUpgrading())
+			{
+				this->nrOfUpgrades--;
+			}
+			else if (unit->isResearching())
+			{
+				this->nrOfTech--;
+			}
+			break;
+		case UnitTypes::Terran_Marine:
+			nrOfMarines--;
+			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
+			break;
+		case UnitTypes::Terran_Refinery:
+			nrOfRefineries--;
+			for (int i = 0; i < MAX_GAS_GATHERERS; i++)
+			{
+				this->gasGathererID[i] = -1;
+			}
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Medic:
+			this->nrOfMedics--;
+			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
+			break;
+		case UnitTypes::Terran_Factory:
+			this->nrOfFactories--;
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Machine_Shop:
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Supply_Depot:
+			this->nrOfSupplyDepots--;
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
 		}
-		break;
-	case UnitTypes::Terran_Barracks:
-		this->nrOfBarracks--;
-		Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Academy:
-		this->nrOfAcademies--;
-		Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
-		if (unit->isUpgrading())
-		{
-			this->nrOfUpgrades--;
-		}
-		else if (unit->isResearching())
-		{
-			this->nrOfTech--;
-		}
-		break;
-	case UnitTypes::Terran_Marine:
-		nrOfMarines--;
-		Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
-		break;
-	case UnitTypes::Terran_Refinery:
-		nrOfRefineries--;
-		for (int i = 0; i < MAX_GAS_GATHERERS; i++)
-		{
-			this->gasGathererID[i] = -1;
-		}
-		Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Medic:
-		this->nrOfMedics--;
-		Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
-		break;
-	case UnitTypes::Terran_Factory:
-		this->nrOfFactories--;
-		Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Machine_Shop:
-		Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
-		break;
 	}
 }
 
@@ -580,14 +595,16 @@ void ExampleAIModule::onUnitMorph(BWAPI::Unit unit)
 	}
 	else
 	{
-		switch (unit->getType())
+		if (unit->getPlayer() == Broodwar->self())
 		{
-		case UnitTypes::Terran_Refinery:
-			stopTraining = false;
-			break;
+			switch (unit->getType())
+			{
+			case UnitTypes::Terran_Refinery:
+				stopTraining = false;
+				break;
+			}
 		}
 	}
-
 }
 
 void ExampleAIModule::onUnitRenegade(BWAPI::Unit unit)
@@ -601,38 +618,45 @@ void ExampleAIModule::onSaveGame(std::string gameName)
 
 void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 {
-	switch (unit->getType())
+	if (unit->getPlayer() == Broodwar->self())
 	{
-	case UnitTypes::Terran_SCV:
-		this->nrOfWorkers++;
-		Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
-		break;
-	case UnitTypes::Terran_Marine:
-		this->nrOfMarines++;
-		Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
-		break;
-	case UnitTypes::Terran_Refinery:
-		this->nrOfRefineries++;
-		Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Barracks:
-		Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Academy:
-		Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Factory:
-		Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Supply_Depot:
-		Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-		break;
-	case UnitTypes::Terran_Medic:
-		this->nrOfMedics++;
-		Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
-		break;
-	case UnitTypes::Terran_Machine_Shop:
-		Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-		break;
+		switch (unit->getType())
+		{
+		case UnitTypes::Terran_SCV:
+			this->nrOfWorkers++;
+			Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
+			break;
+		case UnitTypes::Terran_Marine:
+			this->nrOfMarines++;
+			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
+			break;
+		case UnitTypes::Terran_Refinery:
+			this->nrOfRefineries++;
+			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Barracks:
+			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Academy:
+			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Factory:
+			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Supply_Depot:
+			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Medic:
+			this->nrOfMedics++;
+			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
+			break;
+		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
+			this->nrOfSiegeTanks++;
+			Broodwar << "Active " << unit->getType() << ": " << this->nrOfSiegeTanks << std::endl;
+			break;
+		case UnitTypes::Terran_Machine_Shop:
+			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			break;
+		}
 	}
 }
