@@ -11,16 +11,32 @@ private:
 	static const int MAX_MARINES = 15;
 	static const int MAX_REFINERY = 1;
 	static const int MAX_GAS_GATHERERS = 3;
+	static const int MAX_ACADEMIES = 1;
+	static const int MAX_MEDICS = 3;
+	static const int MAX_UPGRADES = 2;
+	static const int MAX_TECH = 3;
+	static const int MAX_FACTORIES = 1;
+	static const int MAX_SIEGE_TANKS = 3;
 	int nrOfWorkers;
 	int nrOfBarracks;
 	int nrOfMarines;
 	int nrOfRefineries;
+	int nrOfAcademies;
+	int nrOfMedics;
 	int nrOfGasGatherer;
+	int nrOfUpgrades;
+	int nrOfTech;
+	int nrOfFactories;
+	int nrOfSiegeTanks;
+	BWAPI::UpgradeType upgrades[MAX_UPGRADES];
+	BWAPI::TechType tech[MAX_TECH];
 	int gasGathererID[MAX_GAS_GATHERERS];
 	bool stopTraining;
 
+
 	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);
 	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);
+	void drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitType type);
 
 public:
   // Virtual functions for callbacks, leave these as they are.
