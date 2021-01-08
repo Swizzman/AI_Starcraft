@@ -32,8 +32,8 @@ Error ExampleAIModule::createBuilding(UnitType type, Unit unit)
 						builder->build(type, buildPos);
 						if (type == UnitTypes::Terran_Refinery)
 						{
-							gasGathererID[0] = builder->getID();
-							nrOfGasGatherer = 1;
+							gasWorkerID[0] = builder->getID();
+							nrOfGasWorkers = 1;
 						}
 					}
 				}
@@ -80,22 +80,51 @@ void ExampleAIModule::initializeVariables()
 	this->nrOfBarracks = 0;
 	this->nrOfMarines = 0;
 	this->nrOfRefineries = 0;
-	this->nrOfGasGatherer = 0;
+	this->nrOfGasWorkers = 0;
 	this->nrOfAcademies = 0;
 	this->nrOfMedics = 0;
 	this->nrOfUpgrades = 0;
 	this->nrOfTech = 0;
 	this->nrOfFactories = 0;
 	this->nrOfSupplyDepots = 0;
-	this->gasGathererID[0] = -1;
-	this->gasGathererID[1] = -1;
-	this->gasGathererID[2] = -1;
+	this->gasWorkerID[0] = -1;
+	this->gasWorkerID[1] = -1;
+	this->gasWorkerID[2] = -1;
 	this->upgrades[0] = UpgradeTypes::U_238_Shells;
 	this->upgrades[1] = UpgradeTypes::Caduceus_Reactor;
 	this->tech[0] = TechTypes::Stim_Packs;
 	this->tech[1] = TechTypes::Restoration;
 	this->tech[2] = TechTypes::Optical_Flare;
 	this->stopTraining = false;
+	this->rallyIsSet = false;
+}
+
+void ExampleAIModule::assignWorkerToGasGatheringList(BWAPI::Unit unit)
+{
+	if (this->nrOfRefineries > 0 && this->nrOfGasWorkers < MAX_GAS_WORKERS && this->nrOfWorkers > 3)
+	{
+		bool inserted = false;
+		for (int i = 0; i < MAX_GAS_WORKERS && !inserted; i++)
+		{
+			if (this->gasWorkerID[i] == -1)
+			{
+				bool hasFound = false;
+				for (int j = 0; j < nrOfGasWorkers && !hasFound; j++)
+				{
+					if (this->gasWorkerID[j] == unit->getID())
+					{
+						hasFound = true;
+					}
+				}
+				if (!hasFound)
+				{
+					this->gasWorkerID[i] = unit->getID();
+					inserted = true;
+					this->nrOfGasWorkers++;
+				}
+			}
+		}
+	}
 }
 
 void ExampleAIModule::onStart()
@@ -201,9 +230,9 @@ void ExampleAIModule::onFrame()
 		{
 		case UnitTypes::Terran_SCV:
 		{
-			for (int i = 0; i < nrOfGasGatherer; i++)
+			for (int i = 0; i < nrOfGasWorkers; i++)
 			{
-				if (gasGathererID[i] == u->getID() && !u->isGatheringGas())
+				if (gasWorkerID[i] == u->getID() && !u->isGatheringGas())
 				{
 					if (!u->gather(u->getClosestUnit(IsRefinery)))
 					{
@@ -215,30 +244,10 @@ void ExampleAIModule::onFrame()
 					}
 				}
 			}
-			if (this->nrOfRefineries > 0 && this->nrOfGasGatherer < MAX_GAS_GATHERERS && this->nrOfWorkers > 3)
-			{
-				bool inserted = false;
-				for (int i = 0; i < MAX_GAS_GATHERERS && !inserted; i++)
-				{
-					if (this->gasGathererID[i] == -1)
-					{
-						bool hasFound = false;
-						for (int j = 0; j < nrOfGasGatherer && !hasFound; j++)
-						{
-							if (this->gasGathererID[j] == u->getID())
-							{
-								hasFound = true;
-							}
-						}
-						if (!hasFound)
-						{
-							this->gasGathererID[i] = u->getID();
-							inserted = true;
-							this->nrOfGasGatherer++;
-						}
-					}
-				}
-			}
+
+			// Assign workers to gather oil, if one worker dies replace it in the list
+			assignWorkerToGasGatheringList(u);
+
 			// if our worker is idle
 			if (u->isIdle())
 			{
@@ -359,6 +368,21 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Barracks:
 		{
+			double distance = 99999;
+			if (distance == 99999)
+			{
+				for (auto regions : Broodwar->getAllRegions())
+				{
+					if (regions->getDefensePriority() == 2)
+					{
+						if (distance = (regions->getCenter() - u->getPosition()).getLength() < distance)
+						{
+							u->setRallyPoint(regions->getCenter());
+						}
+					}
+				}
+			}
+
 			if (this->nrOfMarines < this->MAX_MARINES)
 			{
 				if (Broodwar->self()->minerals() >= UnitTypes::Terran_Marine.mineralPrice())
@@ -517,18 +541,18 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 		switch (unit->getType())
 		{
 		case UnitTypes::Terran_SCV:
-			nrOfWorkers--;
+			this->nrOfWorkers--;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
-			for (int i = 0; i < nrOfGasGatherer; i++)
+			for (int i = 0; i < this->nrOfGasWorkers; i++)
 			{
-				if (gasGathererID[i] == unit->getID())
+				if (this->gasWorkerID[i] == unit->getID())
 				{
-					for (int j = i; j < MAX_GAS_GATHERERS - 1; j++)
+					for (int j = i; j < this->MAX_GAS_WORKERS - 1; j++)
 					{
-						gasGathererID[j] = gasGathererID[j + 1];
+						this->gasWorkerID[j] = this->gasWorkerID[j + 1];
 					}
-					gasGathererID[MAX_GAS_GATHERERS - 1] = -1;
-					nrOfGasGatherer--;
+					this->gasWorkerID[MAX_GAS_WORKERS - 1] = -1;
+					this->nrOfGasWorkers--;
 					break;
 				}
 			}
@@ -550,14 +574,14 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			}
 			break;
 		case UnitTypes::Terran_Marine:
-			nrOfMarines--;
+			this->nrOfMarines--;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
-			nrOfRefineries--;
-			for (int i = 0; i < MAX_GAS_GATHERERS; i++)
+			this->nrOfRefineries--;
+			for (int i = 0; i < this->MAX_GAS_WORKERS; i++)
 			{
-				this->gasGathererID[i] = -1;
+				this->gasWorkerID[i] = -1;
 			}
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
@@ -600,7 +624,7 @@ void ExampleAIModule::onUnitMorph(BWAPI::Unit unit)
 			switch (unit->getType())
 			{
 			case UnitTypes::Terran_Refinery:
-				stopTraining = false;
+				this->stopTraining = false;
 				break;
 			}
 		}

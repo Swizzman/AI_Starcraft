@@ -1,5 +1,6 @@
 #pragma once
 #include <BWAPI.h>
+#include <BWTA.h>
 // Remember not to use "Broodwar" in any global class constructor!
 
 class ExampleAIModule : public BWAPI::AIModule
@@ -9,7 +10,7 @@ private:
 	static const int MAX_WORKERS = 14;
 	static const int MAX_MARINES = 15;
 	static const int MAX_REFINERY = 1;
-	static const int MAX_GAS_GATHERERS = 3;
+	static const int MAX_GAS_WORKERS = 3;
 	static const int MAX_ACADEMIES = 1;
 	static const int MAX_MEDICS = 7;
 	static const int MAX_UPGRADES = 2;
@@ -22,7 +23,7 @@ private:
 	int nrOfRefineries;
 	int nrOfAcademies;
 	int nrOfMedics;
-	int nrOfGasGatherer;
+	int nrOfGasWorkers;
 	int nrOfUpgrades;
 	int nrOfTech;
 	int nrOfFactories;
@@ -30,14 +31,18 @@ private:
 	int nrOfSupplyDepots;
 	BWAPI::UpgradeType upgrades[MAX_UPGRADES];
 	BWAPI::TechType tech[MAX_TECH];
-	int gasGathererID[MAX_GAS_GATHERERS];
+	int gasWorkerID[MAX_GAS_WORKERS];
 	bool stopTraining;
+	bool rallyIsSet;
 
 
 	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);
 	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);
 	void drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitType type);
 	void initializeVariables();
+
+    // Assign three workers to gather gas, if one gasworker dies replace it in the list
+	void assignWorkerToGasGatheringList(BWAPI::Unit unit);
 
 public:
 	// Virtual functions for callbacks, leave these as they are.
