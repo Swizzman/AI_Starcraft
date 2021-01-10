@@ -646,6 +646,9 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 	if (unit->getPlayer() == Broodwar->self())
 	{
 		double distance = 99999;
+		Unit geyser = unit->getClosestUnit(GetType == UnitTypes::Enum::Resource_Vespene_Geyser ||
+			GetType == UnitTypes::Enum::Terran_Refinery);
+		Position startingLocation = geyser->getPosition();
 		switch (unit->getType())
 		{
 		case UnitTypes::Terran_SCV:
@@ -667,7 +670,8 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			{
 				if (regions->getDefensePriority() == 2)
 				{
-					if (unit->getDistance(regions->getCenter()) < distance)
+					//if (unit->getDistance(regions->getCenter()) < distance)
+					if (startingLocation.getApproxDistance(regions->getCenter()) < distance)
 					{
 						Broodwar << distance << std::endl;
 						distance = unit->getDistance(regions->getCenter());

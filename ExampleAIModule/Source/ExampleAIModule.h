@@ -39,6 +39,7 @@ private:
 	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);
 	void drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitType type);
 	void initializeVariables();
+	BWAPI::Region getClosestChokePoint();
 
     // Assign three workers to gather gas, if one gasworker dies replace it in the list
 	void assignWorkerToGasGatheringList(BWAPI::Unit unit);
