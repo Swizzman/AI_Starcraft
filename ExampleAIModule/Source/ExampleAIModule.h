@@ -33,7 +33,6 @@ private:
 	BWAPI::TechType tech[MAX_TECH];
 	int gasWorkerID[MAX_GAS_WORKERS];
 	bool stopTraining;
-	bool rallyIsSet;
 
 
 	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);

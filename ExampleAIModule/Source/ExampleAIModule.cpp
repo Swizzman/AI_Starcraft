@@ -96,7 +96,6 @@ void ExampleAIModule::initializeVariables()
 	this->tech[1] = TechTypes::Restoration;
 	this->tech[2] = TechTypes::Optical_Flare;
 	this->stopTraining = false;
-	this->rallyIsSet = false;
 }
 
 void ExampleAIModule::assignWorkerToGasGatheringList(BWAPI::Unit unit)
@@ -368,20 +367,23 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Barracks:
 		{
-			double distance = 99999;
-			if (distance == 99999)
-			{
-				for (auto regions : Broodwar->getAllRegions())
-				{
-					if (regions->getDefensePriority() == 2)
-					{
-						if (distance = (regions->getCenter() - u->getPosition()).getLength() < distance)
-						{
-							u->setRallyPoint(regions->getCenter());
-						}
-					}
-				}
-			}
+			//static double distance = 99999;
+			//if (distance == 99999)
+			//{
+			//	Region rallyRegion;
+			//	for (auto regions : Broodwar->getAllRegions())
+			//	{
+			//		if (regions->getDefensePriority() == 2)
+			//		{
+			//			Region closestAccessible = regions->getClosestAccessibleRegion();
+			//			if (distance = closestAccessible->getDistance(u->getRegion()) < distance)
+			//			{
+			//				rallyRegion = regions;
+			//			}
+			//		}
+			//	}
+			//	u->setRallyPoint(rallyRegion->getCenter());
+			//}
 
 			if (this->nrOfMarines < this->MAX_MARINES)
 			{
@@ -500,7 +502,6 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 	{
 		if (unit->getPlayer() == Broodwar->self())
 		{
-
 			if (unit->getType().isBuilding())
 			{
 				stopTraining = false;
@@ -644,6 +645,7 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 {
 	if (unit->getPlayer() == Broodwar->self())
 	{
+		double distance = 99999;
 		switch (unit->getType())
 		{
 		case UnitTypes::Terran_SCV:
@@ -660,6 +662,19 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Barracks:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+
+			for (auto regions : Broodwar->getAllRegions())
+			{
+				if (regions->getDefensePriority() == 2)
+				{
+					if (unit->getDistance(regions->getCenter()) < distance)
+					{
+						Broodwar << distance << std::endl;
+						distance = unit->getDistance(regions->getCenter());
+						unit->setRallyPoint(regions->getCenter());
+					}
+				}
+			}
 			break;
 		case UnitTypes::Terran_Academy:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
