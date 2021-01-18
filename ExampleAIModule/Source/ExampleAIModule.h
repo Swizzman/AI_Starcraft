@@ -33,13 +33,15 @@ private:
 	BWAPI::TechType tech[MAX_TECH];
 	int gasWorkerID[MAX_GAS_WORKERS];
 	bool stopTraining;
-
+	BWAPI::Position chokePoint;
+	bool attackMode;
+	int nrOfDiscovered;
 
 	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);
 	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);
 	void drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitType type);
 	void initializeVariables();
-	BWAPI::Region getClosestChokePoint();
+	BWAPI::Position getClosestChokePoint();
 
     // Assign three workers to gather gas, if one gasworker dies replace it in the list
 	void assignWorkerToGasGatheringList(BWAPI::Unit unit);

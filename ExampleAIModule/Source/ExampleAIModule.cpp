@@ -76,6 +76,7 @@ void ExampleAIModule::drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitT
 
 void ExampleAIModule::initializeVariables()
 {
+	this->nrOfDiscovered = 0;
 	this->nrOfWorkers = 0;
 	this->nrOfBarracks = 0;
 	this->nrOfMarines = 0;
@@ -96,6 +97,43 @@ void ExampleAIModule::initializeVariables()
 	this->tech[1] = TechTypes::Restoration;
 	this->tech[2] = TechTypes::Optical_Flare;
 	this->stopTraining = false;
+	this->attackMode = false;
+	this->chokePoint = getClosestChokePoint();
+}
+
+BWAPI::Position ExampleAIModule::getClosestChokePoint()
+{
+	double distance = 99999;
+    
+	TilePosition startLocTile = Broodwar->self()->getStartLocation();
+	Position startLocPos = { startLocTile.x * 32, startLocTile.y * 32 };
+	Region chokePoint;
+
+	for (auto regions : Broodwar->getAllRegions())
+	{
+		if (regions->getDefensePriority() == 2)
+		{
+			if (startLocPos.getApproxDistance(regions->getCenter()) < distance)
+			{
+				distance = startLocPos.getApproxDistance(regions->getCenter());
+				if (distance > 300 && regions->getID() != 162)
+				{
+					chokePoint = regions;
+				}
+			}
+		}
+	}
+
+	Broodwar->registerEvent([chokePoint](Game*)
+	{
+		Broodwar->drawBoxMap(Position(chokePoint->getBoundsLeft(), chokePoint->getBoundsTop()),
+			Position(chokePoint->getBoundsRight(), chokePoint->getBoundsBottom()),
+			Colors::Red);
+	},
+		nullptr,  // condition
+		850);  // frames to run
+
+	return chokePoint->getCenter();
 }
 
 void ExampleAIModule::assignWorkerToGasGatheringList(BWAPI::Unit unit)
@@ -138,7 +176,7 @@ void ExampleAIModule::onStart()
 	// Print the map name.
 
 	// BWAPI returns std::string when retrieving a string, don't forget to add .c_str() when printing!
-	Broodwar << "The map is " << Broodwar->mapName() << "!" << std::endl;
+	Broodwar << "The map is " << Broodwar->mapName().c_str() << "!" << std::endl;
 
 	// Enable the UserInput flag, which allows us to control the bot and type messages.
 	Broodwar->enableFlag(Flag::UserInput);
@@ -227,6 +265,23 @@ void ExampleAIModule::onFrame()
 		// If the unit is a worker unit
 		switch (u->getType())
 		{
+		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
+		{
+			if (this->nrOfDiscovered > 0 && u->canSiege() && !u->isSieged())
+			{
+				u->siege();
+			}
+
+			break;
+		}
+		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
+		{
+			if (this->nrOfDiscovered == 0 && u->isSieged() && u->canUnsiege())
+			{
+				u->unsiege();
+			}
+			break;
+		}
 		case UnitTypes::Terran_SCV:
 		{
 			for (int i = 0; i < nrOfGasWorkers; i++)
@@ -302,8 +357,6 @@ void ExampleAIModule::onFrame()
 			}
 			if (this->nrOfBarracks < this->MAX_BARRACKS)
 			{
-				// If we are supply blocked and haven't tried constructing more recently
-
 				// BARRACK
 				lastErr = createBuilding(UnitTypes::Terran_Barracks, u);
 				if (lastErr != Errors::None)
@@ -367,24 +420,6 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Barracks:
 		{
-			//static double distance = 99999;
-			//if (distance == 99999)
-			//{
-			//	Region rallyRegion;
-			//	for (auto regions : Broodwar->getAllRegions())
-			//	{
-			//		if (regions->getDefensePriority() == 2)
-			//		{
-			//			Region closestAccessible = regions->getClosestAccessibleRegion();
-			//			if (distance = closestAccessible->getDistance(u->getRegion()) < distance)
-			//			{
-			//				rallyRegion = regions;
-			//			}
-			//		}
-			//	}
-			//	u->setRallyPoint(rallyRegion->getCenter());
-			//}
-
 			if (this->nrOfMarines < this->MAX_MARINES)
 			{
 				if (Broodwar->self()->minerals() >= UnitTypes::Terran_Marine.mineralPrice())
@@ -409,7 +444,7 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Academy:
 		{
-			if (u->isIdle() && !stopTraining && this->nrOfMarines > 5)
+			if (u->isIdle() && !stopTraining && this->nrOfMarines > 5 && this->nrOfFactories > 0)
 			{
 				if (this->nrOfUpgrades < this->MAX_UPGRADES &&
 					Broodwar->self()->minerals() >= upgrades[nrOfUpgrades].mineralPrice() &&
@@ -417,7 +452,7 @@ void ExampleAIModule::onFrame()
 				{
 					u->upgrade(upgrades[nrOfUpgrades++]);
 				}
-				else if (this->nrOfUpgrades == 2 && this->nrOfTech < MAX_TECH &&
+				else if (this->nrOfUpgrades >= 2 && this->nrOfTech < MAX_TECH &&
 					Broodwar->self()->minerals() >= tech[nrOfTech].mineralPrice() &&
 					Broodwar->self()->gas() >= tech[nrOfTech].gasPrice())
 				{
@@ -471,10 +506,28 @@ void ExampleAIModule::onNukeDetect(BWAPI::Position target)
 
 void ExampleAIModule::onUnitDiscover(BWAPI::Unit unit)
 {
+	if (unit->getPlayer() != Broodwar->self())
+	{
+		if (!unit->getType().isBuilding())
+		{
+			this->nrOfDiscovered++;
+		}
+	}
 }
 
 void ExampleAIModule::onUnitEvade(BWAPI::Unit unit)
 {
+	if (unit->getPlayer() != Broodwar->self())
+	{
+		if (!unit->getType().isBuilding())
+		{
+			this->nrOfDiscovered--;
+			if (this->nrOfDiscovered < 0)
+			{
+				this->nrOfDiscovered = 0;
+			}
+		}
+	}
 }
 
 void ExampleAIModule::onUnitShow(BWAPI::Unit unit)
@@ -524,7 +577,6 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 				Broodwar << "Creating: " << unit->getType() << std::endl;
 				break;
 			case UnitTypes::Terran_Factory:
-				this->nrOfFactories++;
 				Broodwar << "Creating: " << unit->getType() << std::endl;
 				break;
 			case UnitTypes::Terran_Machine_Shop:
@@ -601,6 +653,14 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			this->nrOfSupplyDepots--;
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
+		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
+			this->nrOfSiegeTanks--;
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
+		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
+			this->nrOfSiegeTanks--;
+			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
+			break;
 		}
 	}
 }
@@ -645,10 +705,6 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 {
 	if (unit->getPlayer() == Broodwar->self())
 	{
-		double distance = 99999;
-		Unit geyser = unit->getClosestUnit(GetType == UnitTypes::Enum::Resource_Vespene_Geyser ||
-			GetType == UnitTypes::Enum::Terran_Refinery);
-		Position startingLocation = geyser->getPosition();
 		switch (unit->getType())
 		{
 		case UnitTypes::Terran_SCV:
@@ -665,26 +721,15 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Barracks:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-
-			for (auto regions : Broodwar->getAllRegions())
-			{
-				if (regions->getDefensePriority() == 2)
-				{
-					//if (unit->getDistance(regions->getCenter()) < distance)
-					if (startingLocation.getApproxDistance(regions->getCenter()) < distance)
-					{
-						Broodwar << distance << std::endl;
-						distance = unit->getDistance(regions->getCenter());
-						unit->setRallyPoint(regions->getCenter());
-					}
-				}
-			}
+			unit->setRallyPoint(this->chokePoint);
 			break;
 		case UnitTypes::Terran_Academy:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
 			break;
 		case UnitTypes::Terran_Factory:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
+			this->nrOfFactories++;
+			unit->setRallyPoint(this->chokePoint);
 			break;
 		case UnitTypes::Terran_Supply_Depot:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
