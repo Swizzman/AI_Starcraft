@@ -241,7 +241,7 @@ void ExampleAIModule::onFrame()
 	// Latency frames are the number of frames before commands are processed.
 	if (Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0)
 		return;
-	if (armySize > 25 && !attackMode)
+	if (armySize > 20 && !attackMode)
 	{
 		attackMode = true;
 		Broodwar << "Attacking!" << std::endl;
