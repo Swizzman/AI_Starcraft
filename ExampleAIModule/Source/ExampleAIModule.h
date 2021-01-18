@@ -29,6 +29,7 @@ private:
 	int nrOfFactories;
 	int nrOfSiegeTanks;
 	int nrOfSupplyDepots;
+	int armySize;
 	BWAPI::UpgradeType upgrades[MAX_UPGRADES];
 	BWAPI::TechType tech[MAX_TECH];
 	int gasWorkerID[MAX_GAS_WORKERS];

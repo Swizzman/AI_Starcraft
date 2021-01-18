@@ -104,7 +104,7 @@ void ExampleAIModule::initializeVariables()
 BWAPI::Position ExampleAIModule::getClosestChokePoint()
 {
 	double distance = 99999;
-    
+
 	TilePosition startLocTile = Broodwar->self()->getStartLocation();
 	Position startLocPos = { startLocTile.x * 32, startLocTile.y * 32 };
 	Region chokePoint;
@@ -241,7 +241,15 @@ void ExampleAIModule::onFrame()
 	// Latency frames are the number of frames before commands are processed.
 	if (Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0)
 		return;
-
+	if (armySize > 25 && !attackMode)
+	{
+		attackMode = true;
+		Broodwar << "Attacking!" << std::endl;
+	}
+	else if (armySize < 10 && attackMode)
+	{
+		attackMode = false;
+	}
 	// Iterate through all the units that we own
 	for (auto& u : Broodwar->self()->getUnits())
 	{
@@ -403,7 +411,11 @@ void ExampleAIModule::onFrame()
 					Broodwar->self()->minerals() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice() &&
 					Broodwar->self()->gas() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice())
 				{
-					u->train(UnitTypes::Terran_Siege_Tank_Tank_Mode);
+					if (u->train(UnitTypes::Terran_Siege_Tank_Tank_Mode))
+					{
+					this->armySize++;
+					this->nrOfSiegeTanks++; //Exception since siege tanks can switch modes
+					}
 				}
 			}
 			break;
@@ -628,6 +640,7 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Marine:
 			this->nrOfMarines--;
+			this->armySize--;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
@@ -640,6 +653,7 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Medic:
 			this->nrOfMedics--;
+			this->armySize--;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
 			break;
 		case UnitTypes::Terran_Factory:
@@ -655,10 +669,12 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
 			this->nrOfSiegeTanks--;
+			this->armySize--;
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
 		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
 			this->nrOfSiegeTanks--;
+			this->armySize--;
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
 		}
@@ -713,6 +729,7 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Marine:
 			this->nrOfMarines++;
+			this->armySize++;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
@@ -736,10 +753,10 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Medic:
 			this->nrOfMedics++;
+			this->armySize++;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
 			break;
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
-			this->nrOfSiegeTanks++;
 			Broodwar << "Active " << unit->getType() << ": " << this->nrOfSiegeTanks << std::endl;
 			break;
 		case UnitTypes::Terran_Machine_Shop:
