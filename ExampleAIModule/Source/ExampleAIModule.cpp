@@ -242,7 +242,7 @@ void ExampleAIModule::onFrame()
 	// Latency frames are the number of frames before commands are processed.
 	if (Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0)
 		return;
-	if (totalArmySize > 20 && !attackMode)
+	if (totalArmySize > 25 && !attackMode)
 	{
 		attackMode = true;
 		Broodwar << "Attacking!" << std::endl;
@@ -365,7 +365,6 @@ void ExampleAIModule::onFrame()
 				break;
 			}
 			break;
-			break;
 		}
 		case UnitTypes::Terran_Command_Center:
 		{
@@ -438,13 +437,13 @@ void ExampleAIModule::onFrame()
 			{
 				if (u->canBuildAddon(UnitTypes::Terran_Machine_Shop) &&
 					Broodwar->self()->minerals() >= UnitTypes::Terran_Machine_Shop.mineralPrice() &&
-					Broodwar->self()->gas() >= UnitTypes::Terran_Machine_Shop.gasPrice())
+					Broodwar->self()->gas() >= UnitTypes::Terran_Machine_Shop.gasPrice() && !stopTraining)
 				{
 					u->buildAddon(UnitTypes::Terran_Machine_Shop);
 				}
 				if (this->nrOfSiegeTanks < this->MAX_SIEGE_TANKS &&
 					Broodwar->self()->minerals() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice() &&
-					Broodwar->self()->gas() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice())
+					Broodwar->self()->gas() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice() && !stopTraining)
 				{
 					if (u->train(UnitTypes::Terran_Siege_Tank_Tank_Mode))
 					{

@@ -17,7 +17,7 @@ private:
 	static const int MAX_UPGRADES = 2;
 	static const int MAX_TECH = 3;
 	static const int MAX_FACTORIES = 1;
-	static const int MAX_SIEGE_TANKS = 5;
+	static const int MAX_SIEGE_TANKS = 10;
 	int nrOfWorkers;
 	int nrOfBarracks;
 	int nrOfMarines;
