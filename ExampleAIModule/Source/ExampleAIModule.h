@@ -1,6 +1,7 @@
 #pragma once
 #include <BWAPI.h>
 #include <BWTA.h>
+#define CHOKEPOINTDISTANCE 150
 // Remember not to use "Broodwar" in any global class constructor!
 
 class ExampleAIModule : public BWAPI::AIModule
@@ -29,7 +30,7 @@ private:
 	int nrOfFactories;
 	int nrOfSiegeTanks;
 	int nrOfSupplyDepots;
-	int armySize;
+	int totalArmySize;
 	BWAPI::UpgradeType upgrades[MAX_UPGRADES];
 	BWAPI::TechType tech[MAX_TECH];
 	int gasWorkerID[MAX_GAS_WORKERS];

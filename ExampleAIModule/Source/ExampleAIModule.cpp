@@ -85,6 +85,7 @@ void ExampleAIModule::initializeVariables()
 	this->nrOfAcademies = 0;
 	this->nrOfMedics = 0;
 	this->nrOfUpgrades = 0;
+	this->totalArmySize = 0;
 	this->nrOfTech = 0;
 	this->nrOfFactories = 0;
 	this->nrOfSupplyDepots = 0;
@@ -241,12 +242,12 @@ void ExampleAIModule::onFrame()
 	// Latency frames are the number of frames before commands are processed.
 	if (Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0)
 		return;
-	if (armySize > 20 && !attackMode)
+	if (totalArmySize > 20 && !attackMode)
 	{
 		attackMode = true;
 		Broodwar << "Attacking!" << std::endl;
 	}
-	else if (armySize < 10 && attackMode)
+	else if (totalArmySize < 10 && attackMode)
 	{
 		attackMode = false;
 	}
@@ -279,7 +280,10 @@ void ExampleAIModule::onFrame()
 			{
 				u->siege();
 			}
-
+			else if (!attackMode && u->isIdle() && u->getPosition().getDistance(chokePoint) > CHOKEPOINTDISTANCE)
+			{
+				u->move(chokePoint);
+			}
 			break;
 		}
 		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
@@ -330,6 +334,37 @@ void ExampleAIModule::onFrame()
 					}
 				} // closure: has no powerup
 			} // closure: if idle
+			break;
+		}
+		case UnitTypes::Terran_Marine:
+		{
+			switch (attackMode)
+			{
+			case true:
+				break;
+			case false:
+				if (u->isIdle() && u->getPosition().getDistance(chokePoint) > CHOKEPOINTDISTANCE)
+				{
+					u->move(chokePoint);
+				}
+				break;
+			}
+			break;
+		}
+		case UnitTypes::Terran_Medic:
+		{
+			switch (attackMode)
+			{
+			case true:
+				break;
+			case false:
+				if (u->isIdle() && u->getPosition().getDistance(chokePoint) > CHOKEPOINTDISTANCE)
+				{
+					u->move(chokePoint);
+				}
+				break;
+			}
+			break;
 			break;
 		}
 		case UnitTypes::Terran_Command_Center:
@@ -413,8 +448,8 @@ void ExampleAIModule::onFrame()
 				{
 					if (u->train(UnitTypes::Terran_Siege_Tank_Tank_Mode))
 					{
-					this->armySize++;
-					this->nrOfSiegeTanks++; //Exception since siege tanks can switch modes
+						this->totalArmySize++;
+						this->nrOfSiegeTanks++; //Exception since siege tanks can switch modes
 					}
 				}
 			}
@@ -640,7 +675,7 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Marine:
 			this->nrOfMarines--;
-			this->armySize--;
+			this->totalArmySize--;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
@@ -653,7 +688,7 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Medic:
 			this->nrOfMedics--;
-			this->armySize--;
+			this->totalArmySize--;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
 			break;
 		case UnitTypes::Terran_Factory:
@@ -669,12 +704,12 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
 			this->nrOfSiegeTanks--;
-			this->armySize--;
+			this->totalArmySize--;
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
 		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
 			this->nrOfSiegeTanks--;
-			this->armySize--;
+			this->totalArmySize--;
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
 		}
@@ -729,7 +764,7 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Marine:
 			this->nrOfMarines++;
-			this->armySize++;
+			this->totalArmySize++;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
@@ -738,7 +773,6 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Barracks:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-			unit->setRallyPoint(this->chokePoint);
 			break;
 		case UnitTypes::Terran_Academy:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
@@ -746,14 +780,13 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 		case UnitTypes::Terran_Factory:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
 			this->nrOfFactories++;
-			unit->setRallyPoint(this->chokePoint);
 			break;
 		case UnitTypes::Terran_Supply_Depot:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
 			break;
 		case UnitTypes::Terran_Medic:
 			this->nrOfMedics++;
-			this->armySize++;
+			this->totalArmySize++;
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
 			break;
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
