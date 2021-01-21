@@ -36,8 +36,12 @@ private:
 	int gasWorkerID[MAX_GAS_WORKERS];
 	bool stopTraining;
 	BWAPI::Position chokePoint;
+	BWAPI::TilePosition enemyStart;
 	bool attackMode;
 	int nrOfDiscovered;
+	bool siegeModeResearched;
+	BWAPI::Unitset enemies;
+	BWAPI::Unitset marines;
 
 	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);
 	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);

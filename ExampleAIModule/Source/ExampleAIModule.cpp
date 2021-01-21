@@ -11,12 +11,10 @@ Error ExampleAIModule::createBuilding(UnitType type, Unit unit)
 	if (Broodwar->self()->minerals() >= type.mineralPrice() && Broodwar->self()->gas() >= type.gasPrice())
 	{
 		static int lastChecked = 0;
-		if (lastChecked + 250 < Broodwar->getFrameCount())
+		if (lastChecked + 350 < Broodwar->getFrameCount())
 		{
 			if (type != UnitTypes::Terran_Supply_Depot || Broodwar->self()->incompleteUnitCount(type) == 0)
 			{
-				lastChecked = Broodwar->getFrameCount();
-
 				Unit builder = unit->getClosestUnit(GetType == type.whatBuilds().first &&
 					(IsIdle || IsGatheringMinerals) && IsOwned);
 
@@ -29,11 +27,14 @@ Error ExampleAIModule::createBuilding(UnitType type, Unit unit)
 						stopTraining = true;
 						drawRectangleAt(buildPos, type);
 
-						builder->build(type, buildPos);
-						if (type == UnitTypes::Terran_Refinery)
+						if (builder->build(type, buildPos))
 						{
-							gasWorkerID[0] = builder->getID();
-							nrOfGasWorkers = 1;
+							lastChecked = Broodwar->getFrameCount();
+							if (type == UnitTypes::Terran_Refinery)
+							{
+								gasWorkerID[0] = builder->getID();
+								nrOfGasWorkers = 1;
+							}
 						}
 					}
 				}
@@ -100,6 +101,15 @@ void ExampleAIModule::initializeVariables()
 	this->stopTraining = false;
 	this->attackMode = false;
 	this->chokePoint = getClosestChokePoint();
+	this->siegeModeResearched = false;
+
+	for (auto& startLoc : Broodwar->getStartLocations())
+	{
+		if (startLoc != Broodwar->self()->getStartLocation())
+		{
+			enemyStart = startLoc;
+		}
+	}
 }
 
 BWAPI::Position ExampleAIModule::getClosestChokePoint()
@@ -242,7 +252,8 @@ void ExampleAIModule::onFrame()
 	// Latency frames are the number of frames before commands are processed.
 	if (Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0)
 		return;
-	if (totalArmySize > 25 && !attackMode)
+
+	if (totalArmySize > 28 && !attackMode)
 	{
 		attackMode = true;
 		Broodwar << "Attacking!" << std::endl;
@@ -251,6 +262,7 @@ void ExampleAIModule::onFrame()
 	{
 		attackMode = false;
 	}
+
 	// Iterate through all the units that we own
 	for (auto& u : Broodwar->self()->getUnits())
 	{
@@ -276,9 +288,17 @@ void ExampleAIModule::onFrame()
 		{
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
 		{
-			if (this->nrOfDiscovered > 0 && u->canSiege() && !u->isSieged())
+			for (auto& enemy : enemies)
 			{
-				u->siege();
+				if (u->canSiege() && !u->isSieged() && u->isInWeaponRange(enemy))
+				{
+					u->siege();
+					break;
+				}
+			}
+			if (attackMode && u->isIdle())
+			{
+				u->attack(Position(enemyStart));
 			}
 			else if (!attackMode && u->isIdle() && u->getPosition().getDistance(chokePoint) > CHOKEPOINTDISTANCE)
 			{
@@ -288,7 +308,15 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
 		{
-			if (this->nrOfDiscovered == 0 && u->isSieged() && u->canUnsiege())
+			bool inRange = false;
+			for (auto& enemy : enemies)
+			{
+				if (u->isInWeaponRange(enemy))
+				{
+					inRange = true;
+				}
+			}
+			if (u->isSieged() && u->canUnsiege() && !inRange)
 			{
 				u->unsiege();
 			}
@@ -338,31 +366,44 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Marine:
 		{
-			switch (attackMode)
+			if (attackMode)
 			{
-			case true:
-				break;
-			case false:
+				if (u->isIdle())
+				{
+					u->attack(Position(enemyStart));
+					if (u->isAttacking())
+					{
+						if (u->canUseTech(TechTypes::Stim_Packs))
+						{
+							u->useTech(TechTypes::Stim_Packs, u);
+						}
+					}
+				}
+			}
+			else
+			{
 				if (u->isIdle() && u->getPosition().getDistance(chokePoint) > CHOKEPOINTDISTANCE)
 				{
 					u->move(chokePoint);
 				}
-				break;
 			}
 			break;
 		}
 		case UnitTypes::Terran_Medic:
 		{
-			switch (attackMode)
+			if (attackMode)
 			{
-			case true:
-				break;
-			case false:
+				if (u->isIdle())
+				{
+					u->attack(Position(enemyStart));
+				}
+			}
+			else
+			{
 				if (u->isIdle() && u->getPosition().getDistance(chokePoint) > CHOKEPOINTDISTANCE)
 				{
 					u->move(chokePoint);
 				}
-				break;
 			}
 			break;
 		}
@@ -443,7 +484,8 @@ void ExampleAIModule::onFrame()
 				}
 				if (this->nrOfSiegeTanks < this->MAX_SIEGE_TANKS &&
 					Broodwar->self()->minerals() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.mineralPrice() &&
-					Broodwar->self()->gas() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice() && !stopTraining)
+					Broodwar->self()->gas() >= UnitTypes::Terran_Siege_Tank_Tank_Mode.gasPrice() &&
+					!this->stopTraining && this->siegeModeResearched)
 				{
 					if (u->train(UnitTypes::Terran_Siege_Tank_Tank_Mode))
 					{
@@ -461,6 +503,7 @@ void ExampleAIModule::onFrame()
 				Broodwar->self()->gas() >= TechTypes::Tank_Siege_Mode.gasPrice() && !stopTraining)
 			{
 				u->research(TechTypes::Tank_Siege_Mode);
+				siegeModeResearched = true;
 			}
 			break;
 		}
@@ -473,6 +516,10 @@ void ExampleAIModule::onFrame()
 					if (u->isIdle() && !stopTraining)
 					{
 						u->train(UnitTypes::Terran_Marine);
+						if (this->nrOfMarines >= this->MAX_MARINES)
+						{
+							u->cancelTrain();
+						}
 					}
 				}
 			}
@@ -554,9 +601,11 @@ void ExampleAIModule::onUnitDiscover(BWAPI::Unit unit)
 {
 	if (unit->getPlayer() != Broodwar->self())
 	{
-		if (!unit->getType().isBuilding())
+		if (unit->getType() != UnitTypes::Resource_Vespene_Geyser && 
+			unit->getType() != UnitTypes::Resource_Mineral_Field &&
+			unit->getType() != UnitTypes::Unknown)
 		{
-			this->nrOfDiscovered++;
+			enemies.insert(unit);
 		}
 	}
 }
@@ -565,13 +614,11 @@ void ExampleAIModule::onUnitEvade(BWAPI::Unit unit)
 {
 	if (unit->getPlayer() != Broodwar->self())
 	{
-		if (!unit->getType().isBuilding())
+		if (unit->getType() != UnitTypes::Resource_Vespene_Geyser &&
+			unit->getType() != UnitTypes::Resource_Mineral_Field &&
+			unit->getType() != UnitTypes::Unknown)
 		{
-			this->nrOfDiscovered--;
-			if (this->nrOfDiscovered < 0)
-			{
-				this->nrOfDiscovered = 0;
-			}
+			enemies.erase(unit);
 		}
 	}
 }
@@ -601,7 +648,7 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 	{
 		if (unit->getPlayer() == Broodwar->self())
 		{
-			if (unit->getType().isBuilding())
+			if (unit->getType().isBuilding() && unit->getType() != UnitTypes::Terran_Machine_Shop)
 			{
 				stopTraining = false;
 			}
@@ -623,6 +670,7 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 				Broodwar << "Creating: " << unit->getType() << std::endl;
 				break;
 			case UnitTypes::Terran_Factory:
+				this->nrOfFactories++;
 				Broodwar << "Creating: " << unit->getType() << std::endl;
 				break;
 			case UnitTypes::Terran_Machine_Shop:
@@ -675,6 +723,7 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 		case UnitTypes::Terran_Marine:
 			this->nrOfMarines--;
 			this->totalArmySize--;
+			this->marines.erase(unit);
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
@@ -764,6 +813,7 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 		case UnitTypes::Terran_Marine:
 			this->nrOfMarines++;
 			this->totalArmySize++;
+			this->marines.insert(unit);
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
@@ -778,7 +828,6 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			break;
 		case UnitTypes::Terran_Factory:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
-			this->nrOfFactories++;
 			break;
 		case UnitTypes::Terran_Supply_Depot:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;
