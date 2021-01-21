@@ -30,11 +30,6 @@ Error ExampleAIModule::createBuilding(UnitType type, Unit unit)
 						if (builder->build(type, buildPos))
 						{
 							lastChecked = Broodwar->getFrameCount();
-							if (type == UnitTypes::Terran_Refinery)
-							{
-								gasWorkerID[0] = builder->getID();
-								nrOfGasWorkers = 1;
-							}
 						}
 					}
 				}
@@ -82,7 +77,6 @@ void ExampleAIModule::initializeVariables()
 	this->nrOfBarracks = 0;
 	this->nrOfMarines = 0;
 	this->nrOfRefineries = 0;
-	this->nrOfGasWorkers = 0;
 	this->nrOfAcademies = 0;
 	this->nrOfMedics = 0;
 	this->nrOfUpgrades = 0;
@@ -90,9 +84,6 @@ void ExampleAIModule::initializeVariables()
 	this->nrOfTech = 0;
 	this->nrOfFactories = 0;
 	this->nrOfSupplyDepots = 0;
-	this->gasWorkerID[0] = -1;
-	this->gasWorkerID[1] = -1;
-	this->gasWorkerID[2] = -1;
 	this->upgrades[0] = UpgradeTypes::U_238_Shells;
 	this->upgrades[1] = UpgradeTypes::Caduceus_Reactor;
 	this->tech[0] = TechTypes::Stim_Packs;
@@ -102,6 +93,8 @@ void ExampleAIModule::initializeVariables()
 	this->attackMode = false;
 	this->chokePoint = getClosestChokePoint();
 	this->siegeModeResearched = false;
+	this->stealthedEnemy = false;
+	//this->gasWorkers = Unitset::none;
 
 	for (auto& startLoc : Broodwar->getStartLocations())
 	{
@@ -145,34 +138,6 @@ BWAPI::Position ExampleAIModule::getClosestChokePoint()
 		850);  // frames to run
 
 	return chokePoint->getCenter();
-}
-
-void ExampleAIModule::assignWorkerToGasGatheringList(BWAPI::Unit unit)
-{
-	if (this->nrOfRefineries > 0 && this->nrOfGasWorkers < MAX_GAS_WORKERS && this->nrOfWorkers > 3)
-	{
-		bool inserted = false;
-		for (int i = 0; i < MAX_GAS_WORKERS && !inserted; i++)
-		{
-			if (this->gasWorkerID[i] == -1)
-			{
-				bool hasFound = false;
-				for (int j = 0; j < nrOfGasWorkers && !hasFound; j++)
-				{
-					if (this->gasWorkerID[j] == unit->getID())
-					{
-						hasFound = true;
-					}
-				}
-				if (!hasFound)
-				{
-					this->gasWorkerID[i] = unit->getID();
-					inserted = true;
-					this->nrOfGasWorkers++;
-				}
-			}
-		}
-	}
 }
 
 void ExampleAIModule::onStart()
@@ -253,12 +218,12 @@ void ExampleAIModule::onFrame()
 	if (Broodwar->getFrameCount() % Broodwar->getLatencyFrames() != 0)
 		return;
 
-	if (totalArmySize > 28 && !attackMode)
+	if (totalArmySize > ATTACK_SIZE && !attackMode)
 	{
 		attackMode = true;
 		Broodwar << "Attacking!" << std::endl;
 	}
-	else if (totalArmySize < 10 && attackMode)
+	else if (totalArmySize < RETREAT_SIZE && attackMode)
 	{
 		attackMode = false;
 	}
@@ -290,7 +255,9 @@ void ExampleAIModule::onFrame()
 		{
 			for (auto& enemy : enemies)
 			{
-				if (u->canSiege() && !u->isSieged() && u->isInWeaponRange(enemy))
+				if (u->canSiege() && !u->isSieged() && !enemy->isFlying() && 
+					u->getDistance(enemy) <= (WeaponTypes::Arclite_Shock_Cannon.maxRange() - 85) &&
+					u->getDistance(enemy) >= WeaponTypes::Arclite_Shock_Cannon.minRange())
 				{
 					u->siege();
 					break;
@@ -314,6 +281,8 @@ void ExampleAIModule::onFrame()
 				if (u->isInWeaponRange(enemy))
 				{
 					inRange = true;
+					u->attack(enemy);
+					break;
 				}
 			}
 			if (u->isSieged() && u->canUnsiege() && !inRange)
@@ -324,26 +293,19 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_SCV:
 		{
-			for (int i = 0; i < nrOfGasWorkers; i++)
+			if (gasWorkers.getClosestUnit(GetType == UnitTypes::Terran_Refinery))
 			{
-				if (gasWorkerID[i] == u->getID() && !u->isGatheringGas())
+				for (auto& gasGuy : gasWorkers)
 				{
-					if (!u->gather(u->getClosestUnit(IsRefinery)))
+					if (!gasGuy->isGatheringGas())
 					{
-						Error lastErr = Broodwar->getLastError();
-						if (lastErr != Errors::Unit_Busy)
-						{
-							Broodwar << lastErr << std::endl;
-						}
+						gasGuy->gather(gasGuy->getClosestUnit(IsRefinery));
 					}
 				}
 			}
 
-			// Assign workers to gather oil, if one worker dies replace it in the list
-			assignWorkerToGasGatheringList(u);
-
 			// if our worker is idle
-			if (u->isIdle())
+			if (u->isIdle() || (u->isGatheringGas() && !gasWorkers.contains(u)))
 			{
 				// Order workers carrying a resource to return them to the center,
 				// otherwise find a mineral patch to harvest.
@@ -371,13 +333,10 @@ void ExampleAIModule::onFrame()
 				if (u->isIdle())
 				{
 					u->attack(Position(enemyStart));
-					if (u->isAttacking())
-					{
-						if (u->canUseTech(TechTypes::Stim_Packs))
-						{
-							u->useTech(TechTypes::Stim_Packs, u);
-						}
-					}
+				}
+				else if (u->isAttacking() && u->getHitPoints() > (UnitTypes::Terran_Marine.maxHitPoints() - 10))
+				{
+					u->useTech(TechTypes::Stim_Packs, u);
 				}
 			}
 			else
@@ -393,9 +352,20 @@ void ExampleAIModule::onFrame()
 		{
 			if (attackMode)
 			{
-				if (u->isIdle())
+				if (u->isIdle() && u->getDistance(Position(enemyStart)) > 300)
 				{
 					u->attack(Position(enemyStart));
+				}
+				else if (u->getDistance(Position(enemyStart)) < 300)
+				{
+					for(auto& marine : marines)
+					{
+						if (marine->getHitPoints() < UnitTypes::Terran_Marine.maxHitPoints() && 
+							!marine->isBeingHealed() && u->getEnergy() > 5)
+						{
+							u->attack(marine);
+						}
+					}
 				}
 			}
 			else
@@ -418,6 +388,18 @@ void ExampleAIModule::onFrame()
 				if (lastErr != Errors::None)
 				{
 					printErrorAt(lastErr, u->getPosition());
+				}
+			}
+			if (this->nrOfBarracks == 2 && u->canBuildAddon()  && this->nrOfAcademies > 0)
+			{
+				if (Broodwar->self()->gas() > UnitTypes::Terran_Comsat_Station.gasPrice() &&
+					Broodwar->self()->minerals() > UnitTypes::Terran_Comsat_Station.mineralPrice())
+				{
+					if (!u->buildAddon(UnitTypes::Terran_Comsat_Station))
+					{
+						lastErr = Errors::Insufficient_Space;
+						printErrorAt(lastErr, u->getPosition());
+					}
 				}
 			}
 			if (this->nrOfBarracks == 2 && this->nrOfAcademies < this->MAX_ACADEMIES)
@@ -516,10 +498,6 @@ void ExampleAIModule::onFrame()
 					if (u->isIdle() && !stopTraining)
 					{
 						u->train(UnitTypes::Terran_Marine);
-						if (this->nrOfMarines >= this->MAX_MARINES)
-						{
-							u->cancelTrain();
-						}
 					}
 				}
 			}
@@ -537,7 +515,7 @@ void ExampleAIModule::onFrame()
 		}
 		case UnitTypes::Terran_Academy:
 		{
-			if (u->isIdle() && !stopTraining && this->nrOfMarines > 5 && this->nrOfFactories > 0)
+			if (u->isIdle() && !stopTraining && this->nrOfSiegeTanks > 0)
 			{
 				if (this->nrOfUpgrades < this->MAX_UPGRADES &&
 					Broodwar->self()->minerals() >= upgrades[nrOfUpgrades].mineralPrice() &&
@@ -550,6 +528,18 @@ void ExampleAIModule::onFrame()
 					Broodwar->self()->gas() >= tech[nrOfTech].gasPrice())
 				{
 					u->research(tech[nrOfTech++]);
+				}
+			}
+			break;
+		}
+		case UnitTypes::Terran_Comsat_Station:
+		{
+			if (stealthedEnemy)
+			{
+				stealthedEnemy = false;
+				if (u->getEnergy() >= TechTypes::Scanner_Sweep.energyCost())
+				{
+					u->useTech(TechTypes::Scanner_Sweep, chokePoint);
 				}
 			}
 			break;
@@ -648,7 +638,9 @@ void ExampleAIModule::onUnitCreate(BWAPI::Unit unit)
 	{
 		if (unit->getPlayer() == Broodwar->self())
 		{
-			if (unit->getType().isBuilding() && unit->getType() != UnitTypes::Terran_Machine_Shop)
+			if (unit->getType().isBuilding() && 
+				unit->getType() != UnitTypes::Terran_Machine_Shop &&
+				unit->getType() != UnitTypes::Terran_Comsat_Station)
 			{
 				stopTraining = false;
 			}
@@ -689,20 +681,11 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 		{
 		case UnitTypes::Terran_SCV:
 			this->nrOfWorkers--;
-			Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
-			for (int i = 0; i < this->nrOfGasWorkers; i++)
+			if (gasWorkers.contains(unit))
 			{
-				if (this->gasWorkerID[i] == unit->getID())
-				{
-					for (int j = i; j < this->MAX_GAS_WORKERS - 1; j++)
-					{
-						this->gasWorkerID[j] = this->gasWorkerID[j + 1];
-					}
-					this->gasWorkerID[MAX_GAS_WORKERS - 1] = -1;
-					this->nrOfGasWorkers--;
-					break;
-				}
+				gasWorkers.erase(unit);
 			}
+			Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
 			break;
 		case UnitTypes::Terran_Barracks:
 			this->nrOfBarracks--;
@@ -724,19 +707,23 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 			this->nrOfMarines--;
 			this->totalArmySize--;
 			this->marines.erase(unit);
+			if (this->enemies.empty())
+			{
+				stealthedEnemy = true;
+			}
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMarines << std::endl;
 			break;
 		case UnitTypes::Terran_Refinery:
 			this->nrOfRefineries--;
-			for (int i = 0; i < this->MAX_GAS_WORKERS; i++)
-			{
-				this->gasWorkerID[i] = -1;
-			}
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
 		case UnitTypes::Terran_Medic:
 			this->nrOfMedics--;
 			this->totalArmySize--;
+			if (this->enemies.empty())
+			{
+				stealthedEnemy = true;
+			}
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
 			break;
 		case UnitTypes::Terran_Factory:
@@ -753,6 +740,10 @@ void ExampleAIModule::onUnitDestroy(BWAPI::Unit unit)
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
 			this->nrOfSiegeTanks--;
 			this->totalArmySize--;
+			if (this->enemies.empty())
+			{
+				stealthedEnemy = true;
+			}
 			Broodwar << "Destroyed " << unit->getType() << "!" << std::endl;
 			break;
 		case UnitTypes::Terran_Siege_Tank_Siege_Mode:
@@ -808,6 +799,10 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 		{
 		case UnitTypes::Terran_SCV:
 			this->nrOfWorkers++;
+			if (gasWorkers.size() < 3)
+			{
+				gasWorkers.insert(unit);
+			}
 			Broodwar << "Active " << unit->getType() << ": " << nrOfWorkers << std::endl;
 			break;
 		case UnitTypes::Terran_Marine:
@@ -838,7 +833,6 @@ void ExampleAIModule::onUnitComplete(BWAPI::Unit unit)
 			Broodwar << "Active " << unit->getType() << ": " << nrOfMedics << std::endl;
 			break;
 		case UnitTypes::Terran_Siege_Tank_Tank_Mode:
-			Broodwar << "Active " << unit->getType() << ": " << this->nrOfSiegeTanks << std::endl;
 			break;
 		case UnitTypes::Terran_Machine_Shop:
 			Broodwar << "Finished " << unit->getType() << "!" << std::endl;

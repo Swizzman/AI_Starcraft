@@ -11,20 +11,20 @@ private:
 	static const int MAX_WORKERS = 14;
 	static const int MAX_MARINES = 15;
 	static const int MAX_REFINERY = 1;
-	static const int MAX_GAS_WORKERS = 3;
 	static const int MAX_ACADEMIES = 1;
 	static const int MAX_MEDICS = 7;
 	static const int MAX_UPGRADES = 2;
 	static const int MAX_TECH = 3;
 	static const int MAX_FACTORIES = 1;
 	static const int MAX_SIEGE_TANKS = 10;
+	static const int ATTACK_SIZE = 30;
+	static const int RETREAT_SIZE = 10;
 	int nrOfWorkers;
 	int nrOfBarracks;
 	int nrOfMarines;
 	int nrOfRefineries;
 	int nrOfAcademies;
 	int nrOfMedics;
-	int nrOfGasWorkers;
 	int nrOfUpgrades;
 	int nrOfTech;
 	int nrOfFactories;
@@ -33,7 +33,6 @@ private:
 	int totalArmySize;
 	BWAPI::UpgradeType upgrades[MAX_UPGRADES];
 	BWAPI::TechType tech[MAX_TECH];
-	int gasWorkerID[MAX_GAS_WORKERS];
 	bool stopTraining;
 	BWAPI::Position chokePoint;
 	BWAPI::TilePosition enemyStart;
@@ -42,15 +41,14 @@ private:
 	bool siegeModeResearched;
 	BWAPI::Unitset enemies;
 	BWAPI::Unitset marines;
+	BWAPI::Unitset gasWorkers;
+	bool stealthedEnemy;
 
 	BWAPI::Error createBuilding(BWAPI::UnitType type, BWAPI::Unit unit);
 	void printErrorAt(BWAPI::Error error, BWAPI::Position pos);
 	void drawRectangleAt(BWAPI::TilePosition buildPos, BWAPI::UnitType type);
 	void initializeVariables();
 	BWAPI::Position getClosestChokePoint();
-
-    // Assign three workers to gather gas, if one gasworker dies replace it in the list
-	void assignWorkerToGasGatheringList(BWAPI::Unit unit);
 
 public:
 	// Virtual functions for callbacks, leave these as they are.
